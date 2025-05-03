@@ -66,6 +66,7 @@ def main():
     x_axis = alt.X('x_values:T',  axis=alt.Axis(format='%Y-%m', title='日付', tickCount=6))
     y_axis = alt.Y('v:Q', scale=alt.Scale(zero=False), axis=alt.Axis(title='値'))
     v_legend = alt.Legend(title='カテゴリ', orient='right', symbolStrokeWidth=5, labelFontSize=14, titleFontSize=14)
+    v2_legend = alt.Legend(title='カテゴリ', orient='right', symbolStrokeWidth=5, labelFontSize=14, titleFontSize=14)
 
     # 上部のグラフ
     actual_level_df = pd.melt(forecast_df, id_vars=['x_values'], value_vars=['y_values', 'level'], var_name='c', value_name='v')
@@ -74,14 +75,15 @@ def main():
 
     # 下部のグラフ
     trend_season_df = pd.melt(forecast_df, id_vars=['x_values'], value_vars=['trend', 'seasonal_7', 'seasonal_30', 'seasonal_90', 'seasonal_365'], var_name='c', value_name='v')
-    trend_season_chart = alt.Chart(trend_season_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v_legend))
+    trend_season_chart = alt.Chart(trend_season_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v2_legend))
 
     # グラフを縦に結合
     upper_chart = (actual_level_chart + confidence_band).properties(title='AAPLの株価時系列グラフ', width=800, height=300)
     lower_chart = trend_season_chart.properties(title='トレンド・季節成分', width=800, height=300)
 
-    final_chart = alt.vconcat(upper_chart, lower_chart).resolve_scale(y='independent')
+    final_chart = alt.vconcat(upper_chart, lower_chart).resolve_scale(y='independent', color='independent')
     final_chart.save("output.svg")
+    final_chart.save("output.png")
 
 
 if __name__ == "__main__":

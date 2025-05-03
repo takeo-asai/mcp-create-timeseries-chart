@@ -4,36 +4,16 @@ import yfinance as yf
 import os
 from statsmodels.tsa.statespace.structural import UnobservedComponents
 
-def create_df(ticker_symbol: str = "AAPL", period: str = "1y") -> pd.DataFrame:
-    cache_file = f"{ticker_symbol}_{period}.csv"
+from src.stock import load_dataframe
 
-    # キャッシュがあれば使用
-    if os.path.exists(cache_file):
-        df = pd.read_csv(cache_file)
-    else:
-        ticker = yf.Ticker(ticker_symbol)
-        df = ticker.history(period=period).reset_index()[['Date', 'Open']]
-        df.columns = ['x_values', 'y_values']
-        df.to_csv(cache_file, index=False)
-    # x_values に余分な文字列が付いているので削除し、日付形式に変換
-    df['x_values'] = df['x_values'].replace(r' 00:00:00-0\d:00', '', regex=True)
-    return df
 
 def fit_state_space_model(df: pd.DataFrame) -> pd.DataFrame:
     # 元の DataFrame をコピー
     df_copy = df.copy()
 
-    # 日付をインデックスに設定
-    df_copy['x_values'] = pd.to_datetime(df_copy['x_values'], errors='coerce')
-    df_copy.set_index('x_values', inplace=True)
-    if df_copy.index.freq is None:
-        df_copy = df_copy.asfreq('D')  # 日次データとして設定
-    # y_values の NaN を前日の値で埋める
-    df_copy['y_values'] = df_copy['y_values'].ffill()
-
     # 状態空間モデルの構築とフィッティング
     model = UnobservedComponents(
-        df_copy['y_values'],
+        df_copy['price'],
         level='local linear trend',
         freq_seasonal=[
             {'period': 7, 'harmonics': 3},   # 1週間の周期性
@@ -58,23 +38,23 @@ def fit_state_space_model(df: pd.DataFrame) -> pd.DataFrame:
     return df_copy
 
 def main():
-    df = create_df("AAPL", period="2y")
+    df = load_dataframe("AAPL", period="2y")
     forecast_df = fit_state_space_model(df)
-    forecast_df = forecast_df[forecast_df['x_values'] >= "2024-06-01"]
+    forecast_df = forecast_df[forecast_df['date'] >= "2024-06-01"]
 
     # グラフ汎用設定
-    x_axis = alt.X('x_values:T',  axis=alt.Axis(format='%Y-%m', title='日付', tickCount=6))
+    x_axis = alt.X('date:T',  axis=alt.Axis(format='%Y-%m', title='日付', tickCount=6))
     y_axis = alt.Y('v:Q', scale=alt.Scale(zero=False), axis=alt.Axis(title='値'))
     v_legend = alt.Legend(title='レベル・実測値', orient='right', symbolStrokeWidth=5, labelFontSize=14, titleFontSize=14)
     v2_legend = alt.Legend(title='トレンド・季節', orient='right', symbolStrokeWidth=5, labelFontSize=14, titleFontSize=14)
 
     # 上部のグラフ
-    actual_level_df = pd.melt(forecast_df, id_vars=['x_values'], value_vars=['y_values', 'level'], var_name='c', value_name='v')
+    actual_level_df = pd.melt(forecast_df, id_vars=['date'], value_vars=['price', 'level'], var_name='c', value_name='v')
     actual_level_chart = alt.Chart(actual_level_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v_legend, scale=alt.Scale(scheme='tableau10')))
     confidence_band =  alt.Chart(forecast_df).mark_area(opacity=0.5, color='lightblue').encode(x=x_axis, y='lower_ci:Q', y2='upper_ci:Q')
 
     # 下部のグラフ
-    trend_season_df = pd.melt(forecast_df, id_vars=['x_values'], value_vars=['trend', 'seasonal_7', 'seasonal_30', 'seasonal_90', 'seasonal_365'], var_name='c', value_name='v')
+    trend_season_df = pd.melt(forecast_df, id_vars=['date'], value_vars=['trend', 'seasonal_7', 'seasonal_30', 'seasonal_90', 'seasonal_365'], var_name='c', value_name='v')
     trend_season_chart = alt.Chart(trend_season_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v2_legend, scale=alt.Scale(scheme='tableau10')))
 
     # グラフを縦に結合

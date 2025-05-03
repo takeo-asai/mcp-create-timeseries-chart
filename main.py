@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a time series chart for a stock ticker.")
     parser.add_argument("ticker", type=str, nargs="?", default="AAPL", help="Stock ticker symbol (e.g., AAPL)")
     parser.add_argument("period", type=str, nargs="?", default="2y", help="Time period (e.g., 2y, 1y, 6mo)")
-    parser.add_argument("--output", type=str, default="output.svg", help="Output file name without extension (default: 'output')")
+    parser.add_argument("--output", type=str, default="output.svg", help="Output file name with extension (default: 'output.svg'.)")
     args = parser.parse_args()
 
     main(args.ticker, args.period, args.output)

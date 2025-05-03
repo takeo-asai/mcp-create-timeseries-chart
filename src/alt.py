@@ -26,7 +26,10 @@ def create_trend_season_chart(df: pd.DataFrame) -> alt.Chart:
     trend_season_df = pd.melt(df, id_vars=['date'], value_vars=['trend', 'seasonal_7', 'seasonal_30', 'seasonal_90', 'seasonal_365'], var_name='c', value_name='v')
     trend_season_chart = alt.Chart(trend_season_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v2_legend, scale=alt.Scale(scheme='tableau10')))
 
-
     lower_chart = trend_season_chart.properties(title='トレンド・季節成分', width=800, height=300)
     return lower_chart
 
+
+def concat_chart_vertically(upper_chart: alt.Chart, lower_chart: alt.Chart) -> alt.Chart:
+    final_chart = alt.vconcat(upper_chart, lower_chart).resolve_scale(y='independent', color='independent')
+    return final_chart

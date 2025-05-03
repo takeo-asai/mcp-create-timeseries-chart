@@ -8,4 +8,5 @@ dependencies = [
     "altair>=5.5.0",
     "pandas>=2.2.3",
     "vl-convert-python>=1.7.0",
+    "yfinance>=0.2.58",
 ]

@@ -2,6 +2,7 @@ import altair as alt
 import pandas as pd
 import yfinance as yf
 import os
+from statsmodels.tsa.statespace.structural import UnobservedComponents
 
 def create_df(ticker_symbol: str = "AAPL", period: str = "1y") -> pd.DataFrame:
     cache_file = f"{ticker_symbol}_{period}.csv"
@@ -14,22 +15,72 @@ def create_df(ticker_symbol: str = "AAPL", period: str = "1y") -> pd.DataFrame:
         df = ticker.history(period=period).reset_index()[['Date', 'Open']]
         df.columns = ['x_values', 'y_values']
         df.to_csv(cache_file, index=False)
+    # x_values に余分な文字列が付いているので削除し、日付形式に変換
+    df['x_values'] = df['x_values'].replace(r' 00:00:00-0\d:00', '', regex=True)
     return df
+
+def fit_state_space_model(df: pd.DataFrame) -> pd.DataFrame:
+    # 元の DataFrame をコピー
+    df_copy = df.copy()
+
+    # 日付をインデックスに設定
+    df_copy['x_values'] = pd.to_datetime(df_copy['x_values'], errors='coerce')
+    df_copy.set_index('x_values', inplace=True)
+    if df_copy.index.freq is None:
+        df_copy = df_copy.asfreq('D')  # 日次データとして設定
+    # y_values の NaN を前日の値で埋める
+    df_copy['y_values'] = df_copy['y_values'].ffill()
+
+    # 状態空間モデルの構築とフィッティング
+    model = UnobservedComponents(
+        df_copy['y_values'],
+        level='local linear trend',
+        freq_seasonal=[
+            {'period': 7, 'harmonics': 3},   # 1週間の周期性
+            {'period': 30, 'harmonics': 6},  # 1ヶ月の周期性
+            {'period': 90, 'harmonics': 9},  # 3ヶ月の周期性
+            {'period': 365, 'harmonics': 12} # 1年の周期性
+        ]
+    )
+    results = model.fit(maxiter=1000)
+
+    # フィッティング結果を DataFrame に追加
+    df_copy['level'] = results.level.smoothed
+    df_copy['trend'] = results.trend.smoothed
+    # 各季節成分を取得
+    for i, freq in enumerate(model.freq_seasonal_periods):
+        df_copy[f'seasonal_{freq}'] = results.freq_seasonal[i].smoothed
+
+    conf_int = results.get_prediction().conf_int(alpha=0.05)  # 95% 信頼区間
+    df_copy['lower_ci'] = conf_int.iloc[:, 0]  # 信頼区間の下限
+    df_copy['upper_ci'] = conf_int.iloc[:, 1]  # 信頼区間の上限
+    df_copy.reset_index(inplace=True)
+    return df_copy
 
 def main():
     df = create_df("AAPL", period="2y")
+    forecast_df = fit_state_space_model(df)
+    forecast_df = forecast_df[forecast_df['x_values'] >= "2024-06-01"]
 
-    # グラフの作成
-    x_axis = alt.X('x_values:T', timeUnit='yearmonth', axis=alt.Axis(format='%Y-%m', title='日付', tickCount=6))
-    y_axis = alt.Y('y_values:Q', aggregate='mean', axis=alt.Axis(title='平均株価 $'))
-    line = alt.Chart(df).mark_line().encode(x=x_axis, y=y_axis)
-    error_band = alt.Chart(df).mark_errorband(extent='ci').encode(x=x_axis, y=y_axis)
+    # グラフ汎用設定
+    x_axis = alt.X('x_values:T',  axis=alt.Axis(format='%Y-%m', title='日付', tickCount=6))
+    y_axis = alt.Y('v:Q', scale=alt.Scale(zero=False), axis=alt.Axis(title='値'))
+    v_legend = alt.Legend(title='カテゴリ', orient='right', symbolStrokeWidth=5, labelFontSize=14, titleFontSize=14)
 
-    final_chart = (line + error_band).properties(
-        title='AAPLの株価時系列グラフ',
-        width=800,
-        height=300
-    )
+    # 上部のグラフ
+    actual_level_df = pd.melt(forecast_df, id_vars=['x_values'], value_vars=['y_values', 'level'], var_name='c', value_name='v')
+    actual_level_chart = alt.Chart(actual_level_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v_legend))
+    confidence_band =  alt.Chart(forecast_df).mark_area(opacity=0.4, color='lightblue').encode(x=x_axis, y='lower_ci:Q', y2='upper_ci:Q')
+
+    # 下部のグラフ
+    trend_season_df = pd.melt(forecast_df, id_vars=['x_values'], value_vars=['trend', 'seasonal_7', 'seasonal_30', 'seasonal_90', 'seasonal_365'], var_name='c', value_name='v')
+    trend_season_chart = alt.Chart(trend_season_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v_legend))
+
+    # グラフを縦に結合
+    upper_chart = (actual_level_chart + confidence_band).properties(title='AAPLの株価時系列グラフ', width=800, height=300)
+    lower_chart = trend_season_chart.properties(title='トレンド・季節成分', width=800, height=300)
+
+    final_chart = alt.vconcat(upper_chart, lower_chart).resolve_scale(y='independent')
     final_chart.save("output.svg")
 
 

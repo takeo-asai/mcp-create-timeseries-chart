@@ -3,6 +3,7 @@ import pandas as pd
 
 from src.stock import load_dataframe
 from src.ssm import caluculate_trend_level
+from src.alt import create_trend_season_chart
 
 
 def main():
@@ -21,13 +22,9 @@ def main():
     actual_level_chart = alt.Chart(actual_level_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v_legend, scale=alt.Scale(scheme='tableau10')))
     confidence_band =  alt.Chart(forecast_df).mark_area(opacity=0.5, color='lightblue').encode(x=x_axis, y='lower_ci:Q', y2='upper_ci:Q')
 
-    # 下部のグラフ
-    trend_season_df = pd.melt(forecast_df, id_vars=['date'], value_vars=['trend', 'seasonal_7', 'seasonal_30', 'seasonal_90', 'seasonal_365'], var_name='c', value_name='v')
-    trend_season_chart = alt.Chart(trend_season_df).mark_line().encode(x=x_axis, y=y_axis, color=alt.Color('c:N', legend=v2_legend, scale=alt.Scale(scheme='tableau10')))
-
     # グラフを縦に結合
     upper_chart = (actual_level_chart + confidence_band).properties(title='サンプル時系列グラフ', width=800, height=300)
-    lower_chart = trend_season_chart.properties(title='トレンド・季節成分', width=800, height=300)
+    lower_chart = create_trend_season_chart(forecast_df)
 
     final_chart = alt.vconcat(upper_chart, lower_chart).resolve_scale(y='independent', color='independent')
     final_chart.save("output.svg")

@@ -7,6 +7,7 @@ RUN uv sync
 
 ADD main.py ./main.py
 ADD src/ ./src/
+ADD tmp/ ./tmp/
 
-ENTRYPOINT [ "uv", "run", "python" ]
-CMD [ "AAPL", "2yr", "--output", "output.svg" ]
+ENTRYPOINT [ "uv", "run", "python", "main.py" ]
+CMD [ "--prod", "true" ]

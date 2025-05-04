@@ -20,7 +20,7 @@
                 "run",
                 "-i",
                 "--rm",
-                "mcp-timeseries-server"
+                "spitson/mcp-create-timeseries-chart"
             ]
         }
     }

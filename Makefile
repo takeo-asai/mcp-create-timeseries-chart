@@ -4,12 +4,14 @@ clean:
 	rm -rf tmp/*.png
 	rm -rf tmp/*.csv
 	rm -rf src/__pycache__/
-	docker rmi mcp-timeseries-server
+	docker rmi spitson/mcp-create-timeseries-chart
 
 build:
-	docker build -t mcp-timeseries-server .
+	docker build -t spitson/mcp-create-timeseries-chart .
+push:
+	docker push spitson/mcp-create-timeseries-chart
 exec: 
-	docker run -it --rm mcp-timeseries-server
+	docker run -it --rm spitson/mcp-create-timeseries-chart
 
 run:
 	uv run python main.py

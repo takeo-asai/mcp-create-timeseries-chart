@@ -13,6 +13,4 @@ wheels/
 .DS_Store
 
 # Outputs
-*.png
-*.svg
-*.csv
+tmp/*.*

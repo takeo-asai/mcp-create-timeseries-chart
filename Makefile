@@ -1,10 +1,9 @@
-# Makefile for MCP server for generating Stack charts
+# Makefile for MCP server for generating Stock charts
 
 clean:
-	rm -rf *.png
-	rm -rf *.svg
-	rm -rf */*.csv
-	rm -rf */__pycache__/
+	rm -rf tmp/*.png
+	rm -rf tmp/*.csv
+	rm -rf src/__pycache__/
 	docker rmi mcp-timeseries-server
 
 build:
